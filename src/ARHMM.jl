@@ -1,5 +1,5 @@
 
-#K # number of hidden states
+##K # number of hidden states
 #T # total number of timestamps
 #A # Transition probability matrix
 #ϕ # initial emission probablity matrix 
@@ -30,10 +30,11 @@ mutable struct HMM
     log_liklihood::Float64
     T1::Array{Float64,2}
     T2::Array{Int64,2}
+    model::String
 end
 
 
-function HMM(hidden_state_no::Int64, component_label::Int64, experiment_len::Int64)
+function HMM(hidden_state_no::Int64, component_label::Int64, experiment_len::Int64, model::String)
     K = hidden_state_no
     N = component_label
     T = experiment_len;
@@ -43,6 +44,7 @@ function HMM(hidden_state_no::Int64, component_label::Int64, experiment_len::Int
     A .= [i==j ? 0.9 : 0.1/(K-1) for i=1:K,j=1:K]
     
     ϕ = ones(Float64,K, N) .* 0.5
+    ϕ .= abs.(randn(K,N)./2)
     e = ones(Float64,K,N,N) .*0.5
     for i=1:N
         e[:,:,i] .= abs.(randn(K,N)./2)
@@ -60,8 +62,9 @@ function HMM(hidden_state_no::Int64, component_label::Int64, experiment_len::Int
     log_likelihood = 0;
     T1 = zeros(Float64, K, T)
     T2 = zeros(Int64, K, T)
+    model = model
     
-     HMM(K, N, T, Π, A, ϕ, e, X, Y, α, β, c, α_hat, β_hat, γ, ξ, log_likelihood, T1, T2)
+     HMM(K, N, T, Π, A, ϕ, e, X, Y, α, β, c, α_hat, β_hat, γ, ξ, log_likelihood, T1, T2, model)
 end
 
 
@@ -84,6 +87,23 @@ function baum_welch_fwd_ARHMM!(hmm::HMM)
     end
 end;
 
+function baum_welch_fwd_HMM!(hmm::HMM)
+    for i=1:hmm.K
+        hmm.α_hat[i, 1] = hmm.Π[i] * hmm.ϕ[i, hmm.Y[1]]
+    end
+    hmm.c[1] = 1 / sum(hmm.α_hat[:, 1])
+    hmm.α_hat[:, 1] *= hmm.c[1]
+    
+    for t=2:hmm.T
+        for i=1:hmm.K
+            hmm.α_hat[i, t] = hmm.ϕ[i, hmm.Y[t]] * sum(hmm.α_hat[j, t - 1] * hmm.A[j, i] for j=1:hmm.K)
+        end
+        hmm.c[t] = 1 / sum(hmm.α_hat[:, t])
+        hmm.α_hat[:, t] *= hmm.c[t]
+    end
+end;
+
+
 
 
 
@@ -94,6 +114,17 @@ function baum_welch_bwd_ARHMM!(hmm::HMM)
     for t=hmm.T:-1:2
         for i=1:hmm.K
             hmm.β_hat[i, t - 1] = hmm.c[t - 1] * sum(hmm.β_hat[j, t] * hmm.A[i, j] * hmm.e[j, hmm.Y[t], hmm.Y[t-1]] for j=1:hmm.K)
+        end
+    end
+end;
+
+function baum_welch_bwd_HMM!(hmm::HMM)
+    for i=1:hmm.K
+        hmm.β_hat[i, hmm.T] = hmm.c[hmm.T]
+    end
+    for t=hmm.T:-1:2
+        for i=1:hmm.K
+            hmm.β_hat[i, t - 1] = hmm.c[t - 1] * sum(hmm.β_hat[j, t] * hmm.A[i, j] * hmm.ϕ[j, hmm.Y[t]] for j=1:hmm.K)
         end
     end
 end;
@@ -109,6 +140,15 @@ function baum_welch_intermediate_ARHMM!(hmm::HMM)
     end
 end;
 
+function baum_welch_intermediate_HMM!(hmm::HMM)
+    for t=1:hmm.T, i=1:hmm.K
+        hmm.γ[i, t] = hmm.α_hat[i, t] * hmm.β_hat[i, t] / hmm.c[t]
+    end
+    for t=1:hmm.T-1, j=1:hmm.K, i=1:hmm.K
+        hmm.ξ[i, j, t] = hmm.α_hat[i, t] * hmm.A[i, j] * hmm.β_hat[j, t + 1] * hmm.ϕ[j, hmm.Y[t + 1]]
+    end
+end;
+
 
 
 function baum_welch_update_ARHMM!(hmm::HMM)
@@ -118,6 +158,14 @@ function baum_welch_update_ARHMM!(hmm::HMM)
     hmm.e .= [sum(hmm.Y[t] == j && hmm.Y[t-1] == l ? hmm.γ[i, t] : 0 for t=2:hmm.T) / γ_sum[i] for i=1:hmm.K, j=1:hmm.N, l=1:hmm.N]
 end;
 
+function baum_welch_update_HMM!(hmm::HMM)
+    hmm.Π .= hmm.γ[:, 1]
+    γ_sum = sum(hmm.γ, dims = 2)
+    hmm.A .= [sum(hmm.ξ[i, j, :]) / γ_sum[i] for i=1:hmm.K, j=1:hmm.K]
+    hmm.e .= [sum(hmm.Y[t] == j ? hmm.γ[i, t] : 0 for t=2:hmm.T) / γ_sum[i] for i=1:hmm.K, j=1:hmm.N]
+end;
+
+
 
 function log_likelihood(hmm::HMM)
     et.loglikihood =  -sum(log.(hmm.c))
@@ -125,11 +173,20 @@ end
 
 
 function hmm_fit(hmm::HMM, no_iteration::Int64)
-   for i=1:no_iteration
-        baum_welch_fwd_ARHMM!(hmm);
-        baum_welch_bwd_ARHMM!(hmm);
-        baum_welch_intermediate_ARHMM!(hmm);
-        baum_welch_update_ARHMM!(hmm);
+   if hmm.model == "ARHMM"
+        for i=1:no_iteration
+            baum_welch_fwd_ARHMM!(hmm);
+            baum_welch_bwd_ARHMM!(hmm);
+            baum_welch_intermediate_ARHMM!(hmm);
+            baum_welch_update_ARHMM!(hmm);
+        end
+   else
+         for i=1:no_iteration
+            baum_welch_fwd_HMM!(hmm);
+            baum_welch_bwd_HMM!(hmm);
+            baum_welch_intermediate_HMM!(hmm);
+            baum_welch_update_HMM!(hmm);
+         end
    end
 end
     
@@ -140,11 +197,18 @@ function viterbi(hmm::HMM)
         hmm.T1[i, 1] = log(hmm.Π[i]) + log(hmm.ϕ[i, hmm.Y[1]])
         hmm.T2[i, 1] = 0
     end
-    
-    for i=2:hmm.T
-        for j=1:hmm.K
-            hmm.T1[j, i], hmm.T2[j, i] = findmax(hmm.T1[k, i - 1] + log(hmm.A[k, j]) + log(hmm.e[j, hmm.Y[i], hmm.Y[i-1]]) for k=1:hmm.K)
-        end
+    if hmm.model == "ARHMM" 
+            for i=2:hmm.T
+                for j=1:hmm.K
+                    hmm.T1[j, i], hmm.T2[j, i] = findmax(hmm.T1[k, i - 1] + log(hmm.A[k, j]) + log(hmm.e[j, hmm.Y[i], hmm.Y[i-1]]) for k=1:hmm.K)
+                end
+            end
+    else
+            for i=2:hmm.T
+                for j=1:hmm.K
+                    hmm.T1[j, i], hmm.T2[j, i] = findmax(hmm.T1[k, i - 1] + log(hmm.A[k, j]) + log(hmm.ϕ[j, hmm.Y[i]]) for k=1:hmm.K)
+                end
+            end
     end
 
     max_value, hmm.X[hmm.T] = findmax(hmm.T1[:, hmm.T])
@@ -153,3 +217,4 @@ function viterbi(hmm::HMM)
         hmm.X[i - 1] = hmm.T2[hmm.X[i], i]
     end
 end
+
