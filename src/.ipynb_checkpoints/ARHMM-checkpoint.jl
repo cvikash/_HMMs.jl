@@ -1,5 +1,5 @@
 
-##K # number of hidden states
+#K # number of hidden states
 #T # total number of timestamps
 #A # Transition probability matrix
 #ϕ # initial emission probablity matrix 
@@ -27,7 +27,7 @@ mutable struct HMM
     β_hat::Array{Float64,2}
     γ::Array{Float64,2}
     ξ::Array{Float64,3}
-    log_liklihood::Float64
+    log_likelihood::Float64
     T1::Array{Float64,2}
     T2::Array{Int64,2}
     model::String
@@ -162,13 +162,13 @@ function baum_welch_update_HMM!(hmm::HMM)
     hmm.Π .= hmm.γ[:, 1]
     γ_sum = sum(hmm.γ, dims = 2)
     hmm.A .= [sum(hmm.ξ[i, j, :]) / γ_sum[i] for i=1:hmm.K, j=1:hmm.K]
-    hmm.e .= [sum(hmm.Y[t] == j ? hmm.γ[i, t] : 0 for t=2:hmm.T) / γ_sum[i] for i=1:hmm.K, j=1:hmm.N]
+    hmm.ϕ .= [sum(hmm.Y[t] == j ? hmm.γ[i, t] : 0 for t=2:hmm.T) / γ_sum[i] for i=1:hmm.K, j=1:hmm.N]
 end;
 
 
 
 function log_likelihood(hmm::HMM)
-    et.loglikihood =  -sum(log.(hmm.c))
+    hmm.log_likelihood =  -sum(log.(hmm.c))
 end
 
 
