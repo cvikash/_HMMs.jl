@@ -3,4 +3,5 @@ uuid = "b9920c71-4bf8-4c41-afa4-831066b4b294"
 authors = ["Vikash Choudhary <vikash7991vikki@gmail.com>"]
 version = "0.1.0"
 
-
+[deps]
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"

@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 
 #K # number of hidden states
+=======
+using PyCall
+##K # number of hidden states
+>>>>>>> 426ebe5cb5a190d2149f956246e882ad9316873d
 #T # total number of timestamps
 #A # Transition probability matrix
 #ϕ # initial emission probablity matrix 
@@ -218,3 +223,11 @@ function viterbi(hmm::HMM)
     end
 end
 
+function GMM_labels(no_components, cur_Y)
+    mixture = pyimport("sklearn.mixture")
+    gmm = mixture[:GaussianMixture](no_components, covariance_type="full")
+    gmm[:fit](cur_Y)
+    mixture_component_labels = zeros(Int64, size(cur_Y)[1])
+    mixture_component_labels .= gmm[:predict](cur_Y);  # labels to feed in the HMM
+    mixture_component_labels .+= 1
+end
