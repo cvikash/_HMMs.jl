@@ -1,10 +1,6 @@
-<<<<<<< HEAD
+using PyCall
 
 #K # number of hidden states
-=======
-using PyCall
-##K # number of hidden states
->>>>>>> 426ebe5cb5a190d2149f956246e882ad9316873d
 #T # total number of timestamps
 #A # Transition probability matrix
 #ϕ # initial emission probablity matrix 
