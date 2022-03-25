@@ -195,6 +195,8 @@ function hmm_fit(hmm::HMM, no_iteration::Int64)
             baum_welch_update_HMM!(hmm);
          end
    end
+   log_likelihood(hmm)
+   AIC(hmm)
 end
     
 
