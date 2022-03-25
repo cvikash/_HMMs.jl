@@ -29,6 +29,7 @@ mutable struct HMM
     γ::Array{Float64,2}
     ξ::Array{Float64,3}
     log_likelihood::Float64
+    aic::Float64
     T1::Array{Float64,2}
     T2::Array{Int64,2}
     model::String
@@ -60,12 +61,13 @@ function HMM(hidden_state_no::Int64, component_label::Int64, experiment_len::Int
     β_hat = zeros(Float64,K, T)
     γ = zeros(Float64,K, T)
     ξ = zeros(Float64, K, K, T-1)
-    log_likelihood = 0;
+    log_likelihood = 0.0;
+    aic = 0.0;
     T1 = zeros(Float64, K, T)
     T2 = zeros(Int64, K, T)
     model = model
     
-     HMM(K, N, T, Π, A, ϕ, e, X, Y, α, β, c, α_hat, β_hat, γ, ξ, log_likelihood, T1, T2, model)
+     HMM(K, N, T, Π, A, ϕ, e, X, Y, α, β, c, α_hat, β_hat, γ, ξ, log_likelihood, aic T1, T2, model)
 end
 
 
@@ -172,6 +174,10 @@ function log_likelihood(hmm::HMM)
     hmm.log_likelihood =  -sum(log.(hmm.c))
 end
 
+function AIC(hmm::HMM)
+    k = hmm.model=="ARHMM" ? hmm.K*hmm.N + hmm.K*hmm.N*hmm.N : hmm.K*hmm.N + hmm.K*hmm.N
+    hmm.aic = 2*k - 2*(hmm.log_likelihood)
+end
 
 function hmm_fit(hmm::HMM, no_iteration::Int64)
    if hmm.model == "ARHMM"
