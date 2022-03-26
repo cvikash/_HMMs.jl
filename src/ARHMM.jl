@@ -67,7 +67,7 @@ function HMM(hidden_state_no::Int64, component_label::Int64, experiment_len::Int
     T2 = zeros(Int64, K, T)
     model = model
     
-     HMM(K, N, T, Π, A, ϕ, e, X, Y, α, β, c, α_hat, β_hat, γ, ξ, log_likelihood, aic T1, T2, model)
+     HMM(K, N, T, Π, A, ϕ, e, X, Y, α, β, c, α_hat, β_hat, γ, ξ, log_likelihood, aic, T1, T2, model)
 end
 
 
